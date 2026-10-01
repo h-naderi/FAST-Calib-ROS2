@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 project(fast_calib)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options(-Wall -Wextra)
 endif()
 
 # Set C++ standard
@@ -20,19 +20,24 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
-find_package(cv_bridge REQUIRED)
-find_package(image_transport REQUIRED)
-find_package(image_geometry REQUIRED)
+
 find_package(rosbag2_cpp REQUIRED)
 find_package(rosbag2_storage REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(PCL 1.10 REQUIRED)
+# Workspace-local OpenCV 4.5.4 built WITH the contrib aruco module.
+# The system OpenCV (NVIDIA JetPack 4.5.4) has no aruco. Override with -DOpenCV_DIR=... if needed.
+if(NOT DEFINED OpenCV_DIR)
+  set(OpenCV_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../thirdparty/opencv454/lib/cmake/opencv4")
+endif()
 find_package(OpenCV REQUIRED)
+message(STATUS "fast_calib: OpenCV ${OpenCV_VERSION} from ${OpenCV_DIR}")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 include_directories(
   include
-  ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
 )
 
 set(CMAKE_BUILD_TYPE Release)
@@ -54,9 +59,6 @@ ament_target_dependencies(fast_calib
   tf2_ros
   tf2_geometry_msgs
   pcl_conversions
-  cv_bridge
-  image_transport
-  image_geometry
   rosbag2_cpp
   rosbag2_storage
   ament_index_cpp

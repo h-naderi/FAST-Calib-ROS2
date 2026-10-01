@@ -17,7 +17,7 @@ which is included as part of this source code package.
 #include <rclcpp/rclcpp.hpp>
 #include <rosbag2_cpp/readers/sequential_reader.hpp>
 #include <rosbag2_cpp/converter_interfaces/serialization_format_converter.hpp>
-#include <rosbag2_storage/storage_options.hpp>
+#include <rosbag2_cpp/storage_options.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <rclcpp/serialization.hpp>
 
@@ -60,7 +60,7 @@ public:
         
         // ROS 2 rosbag reading
         rosbag2_cpp::readers::SequentialReader reader;
-        rosbag2_storage::StorageOptions storage_options;
+        rosbag2_cpp::StorageOptions storage_options;
         storage_options.uri = bag_path;
         storage_options.storage_id = "sqlite3";
 

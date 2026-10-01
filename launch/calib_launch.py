@@ -15,11 +15,24 @@ def generate_launch_description():
         description='Launch RViz'
     )
 
+    # Which parameter file to run. DEFAULT IS THE GO2 BOARD -- running with the wrong
+    # geometry produces a plausible-looking but wrong extrinsic and no error message,
+    # so the config that is actually in use is the one that needs no argument.
+    # For the Mid360 sample-data regression case, pass it explicitly:
+    #   params_file:=<pkg_share>/config/qr_params.yaml
+    params_arg = DeclareLaunchArgument(
+        'params_file',
+        default_value=os.path.join(
+            get_package_share_directory('fast_calib'), 'config', 'qr_params_go2.yaml'),
+        description='Absolute path to the qr_params YAML to use '
+                    '(default: qr_params_go2.yaml, the Go2 half-scale board)'
+    )
+
     # Get package directory
     pkg_share = get_package_share_directory('fast_calib')
     
-    # Parameters file path
-    params_file = os.path.join(pkg_share, 'config', 'qr_params.yaml')
+    # Parameters file path (overridable via the params_file launch argument)
+    params_file = LaunchConfiguration('params_file')
     
     # RViz config file path
     rviz_config = os.path.join(pkg_share, 'rviz_cfg', 'fast_livo2.rviz')
@@ -44,6 +57,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         rviz_arg,
+        params_arg,
         fast_calib_node,
         rviz_node
     ])

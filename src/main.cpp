@@ -45,8 +45,22 @@ int main(int argc, char **argv)
     // Sort detected circle centers from QR and LiDAR
     pcl::PointCloud<pcl::PointXYZ>::Ptr qr_centers(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr lidar_centers(new pcl::PointCloud<pcl::PointXYZ>);
-    sortPatternCenters(qr_center_cloud, qr_centers, "camera");
-    sortPatternCenters(lidar_center_cloud, lidar_centers, "lidar");
+    if (params.use_template_fit)
+    {
+      // Both clouds are already in TL,TR,BR,BL order facing the board -- the camera
+      // side by construction (boardCircleCenters, qr_detect.hpp:153-165), the LiDAR
+      // side from the gravity ordering in detectHolesTemplate(). Do NOT re-sort:
+      // sortPatternCenters picks "top" as the centre closest to the optical axis
+      // (common_lib.h:334-345), which the camera and LiDAR can disagree on since
+      // they sit ~0.2 m apart -- silently rotating the correspondence.
+      *qr_centers = *qr_center_cloud;
+      *lidar_centers = *lidar_center_cloud;
+    }
+    else
+    {
+      sortPatternCenters(qr_center_cloud, qr_centers, "camera");
+      sortPatternCenters(lidar_center_cloud, lidar_centers, "lidar");
+    }
 
     // Calculate extrinsic parameters
     Eigen::Matrix4f transformation;

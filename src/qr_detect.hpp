@@ -8,8 +8,6 @@ which is included as part of this source code package.
 #ifndef QR_DETECT_HPP
 #define QR_DETECT_HPP
 
-#include <cv_bridge/cv_bridge.hpp>
-#include <image_geometry/pinhole_camera_model.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <opencv2/aruco.hpp>
 #include <opencv2/opencv.hpp>
@@ -21,6 +19,7 @@ class QRDetect
     double marker_size_, delta_width_qr_center_, delta_height_qr_center_;
     double delta_width_circles_, delta_height_circles_;
     int min_detected_markers_;
+    std::vector<long int> marker_corner_shift_;
     cv::Ptr<cv::aruco::Dictionary> dictionary_;
     std::shared_ptr<rclcpp::Node> node_;
   
@@ -39,6 +38,7 @@ class QRDetect
       delta_width_circles_ = params.delta_width_circles;
       delta_height_circles_ = params.delta_height_circles;
       min_detected_markers_ = params.min_detected_markers;
+      marker_corner_shift_ = params.marker_corner_shift;
       
       // Initialize camera matrix
       cameraMatrix_ = (cv::Mat_<float>(3, 3) << params.fx, 0, params.cx,
@@ -194,6 +194,23 @@ class QRDetect
       std::vector<int> ids;
       std::vector<std::vector<cv::Point2f>> corners;
       cv::aruco::detectMarkers(processedImage, dictionary_, corners, ids, parameters);
+
+      // Undo any physical marker rotation BEFORE anything consumes the corners.
+      // detectMarkers returns corners in the marker's own frame; estimatePoseBoard
+      // below matches them to boardCorners by index, in the board's frame. If a
+      // marker is mounted rotated the two disagree and the board pose is silently
+      // dragged (~4.7 deg / 13 mm of circle-centre shift on this board). Rotating
+      // the list left by k makes detected corner (j+k)%4 stand in for board corner j.
+      for (size_t k = 0; k < ids.size(); ++k) {
+        if (ids[k] < 1 || ids[k] > 4) continue;
+        int s = static_cast<int>(marker_corner_shift_[ids[k] - 1]) % 4;
+        if (s < 0) s += 4;
+        if (s == 0) continue;
+        std::rotate(corners[k].begin(), corners[k].begin() + s, corners[k].end());
+        RCLCPP_INFO(node_->get_logger(),
+                    "[marker %d] corner order rotated by %d to undo a mounted rotation",
+                    ids[k], s);
+      }
 
       // Draw detections if at least one marker detected
       if (ids.size() > 0) cv::aruco::drawDetectedMarkers(imageCopy_, corners, ids);

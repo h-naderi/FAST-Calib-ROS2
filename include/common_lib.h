@@ -29,7 +29,7 @@ which is included as part of this source code package.
 #include <filesystem>
 
 #include <tf2/LinearMath/Transform.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include "color.h"
 #include <rclcpp/rclcpp.hpp>
 
@@ -39,7 +39,11 @@ using namespace pcl;
 
 #define TARGET_NUM_CIRCLES 4
 #define DEBUG 1
-#define GEOMETRY_TOLERANCE 0.06
+#define GEOMETRY_TOLERANCE 0.02  // was 0.06; must stay below
+                                 // |delta_width_circles - delta_height_circles|
+                                 // (0.05 m on the Go2 half-scale board) or the
+                                 // width bin at Square::is_valid() swallows the
+                                 // vertical pairs and validation always fails.
 
 // Parameters structure
 struct Params {
@@ -48,6 +52,33 @@ struct Params {
   double marker_size, delta_width_qr_center, delta_height_qr_center;
   double delta_width_circles, delta_height_circles, circle_radius;
   int min_detected_markers;
+  // Edge/hole extraction knobs. Exposed because their correct values depend on the
+  // LiDAR's ring pitch at the board distance, which upstream's hardcoded constants
+  // silently assume. On a 16-beam XT16 at 1.0 m the pitch is 35 mm; with a 45 mm
+  // search radius an interior point only ever sees 3 rings, so its neighbour
+  // directions leave gaps of asin(35/45) = 51 deg -- above upstream's 45 deg
+  // threshold, which flags 97% of the board as boundary.
+  double edge_search_radius;      // normal + boundary estimation neighbourhood [m]
+  double boundary_angle_deg;      // BoundaryEstimation angle criterion [deg]
+  double cluster_tolerance;       // Euclidean cluster gap [m]
+  int min_cluster_size;           // min points per rim cluster
+  int max_cluster_size;           // max points per rim cluster
+  // Hole-detection strategy. false = upstream (boundary -> Euclidean cluster ->
+  // circle RANSAC), which needs a dense rim and therefore a dense LiDAR. true =
+  // fit the KNOWN 4-hole pattern to the void field, which works with as few as
+  // 4 rings per hole. Required on a 16-beam XT16; see the header comment on
+  // detectHolesTemplate() in lidar_detect.hpp.
+  bool use_template_fit;
+  // Per-marker corner-order correction, indexed by ArUco ID 1..4 (i.e. board
+  // positions TL, TR, BL, BR). cv::aruco::detectMarkers always returns corners in
+  // the MARKER's own frame, while estimatePoseBoard matches them to boardCorners
+  // BY INDEX, in the BOARD's frame. A marker glued on rotated therefore feeds four
+  // mis-corresponded points into the board pose fit with no error message -- 27 px
+  // of reprojection residual and ~4.7 deg of board-pose bias, measured on the Go2
+  // board whose bottom-left marker sits 90 deg clockwise. Entry k rotates that
+  // marker's corner list left by k, so detected corner (j+k)%4 is treated as board
+  // corner j. All zeros = upstream behaviour.
+  std::vector<long int> marker_corner_shift;
   string image_path;
   string bag_path;
   string lidar_topic;
@@ -84,6 +115,14 @@ Params loadParameters(std::shared_ptr<rclcpp::Node> node) {
   node->declare_parameter("y_max", 2.0);
   node->declare_parameter("z_min", -0.5);
   node->declare_parameter("z_max", 2.0);
+  node->declare_parameter("edge_search_radius", 0.03);   // upstream default
+  node->declare_parameter("boundary_angle_deg", 45.0);   // upstream default (M_PI/4)
+  node->declare_parameter("cluster_tolerance", 0.02);    // upstream default
+  node->declare_parameter("min_cluster_size", 50);       // upstream default
+  node->declare_parameter("max_cluster_size", 1000);     // upstream default
+  node->declare_parameter("use_template_fit", false);    // upstream default
+  node->declare_parameter("marker_corner_shift",
+                          std::vector<long int>{0, 0, 0, 0});  // upstream default
 
   // Get parameter values with error handling
   try {
@@ -112,6 +151,19 @@ Params loadParameters(std::shared_ptr<rclcpp::Node> node) {
     params.y_max = node->get_parameter("y_max").as_double();
     params.z_min = node->get_parameter("z_min").as_double();
     params.z_max = node->get_parameter("z_max").as_double();
+    params.edge_search_radius = node->get_parameter("edge_search_radius").as_double();
+    params.boundary_angle_deg = node->get_parameter("boundary_angle_deg").as_double();
+    params.cluster_tolerance  = node->get_parameter("cluster_tolerance").as_double();
+    params.min_cluster_size   = node->get_parameter("min_cluster_size").as_int();
+    params.max_cluster_size   = node->get_parameter("max_cluster_size").as_int();
+    params.use_template_fit   = node->get_parameter("use_template_fit").as_bool();
+    params.marker_corner_shift = node->get_parameter("marker_corner_shift").as_integer_array();
+    if (params.marker_corner_shift.size() != 4) {
+      RCLCPP_ERROR(node->get_logger(),
+                   "marker_corner_shift must have exactly 4 entries (ArUco IDs 1..4), got %zu",
+                   params.marker_corner_shift.size());
+      throw std::runtime_error("bad marker_corner_shift");
+    }
   } catch (const std::exception& e) {
     RCLCPP_ERROR(node->get_logger(), "Error loading parameters: %s", e.what());
     throw;

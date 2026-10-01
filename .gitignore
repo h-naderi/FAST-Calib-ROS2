@@ -4,3 +4,6 @@ build/*
 log/*
 install/*
 ’
+
+# Large point-cloud outputs (exceed GitHub 100 MB limit)
+*.pcd

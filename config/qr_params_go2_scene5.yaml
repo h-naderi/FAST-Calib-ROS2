@@ -1,0 +1,74 @@
+# FAST-Calib parameters for the Go2 (Hesai XT16 + RealSense D435i) with the custom
+# half-scale foam board: 685.8 x 546.1 mm, 4 x D160 mm holes, 4 x 80 mm DICT_6X6_250.
+#
+# Board frame: origin at board centre, +x right, +y up, facing the board.
+# ArUco layout facing the board:  top-left ID 1, top-right ID 2,
+#                                 bottom-left ID 3, bottom-right ID 4.
+# (fixed by boardIds{1,2,4,3} at src/qr_detect.hpp:178 -- swapping 3/4 yields a
+#  wrong extrinsic with NO error message)
+#
+# NOTE the two parameter families use OPPOSITE conventions, per qr_detect.hpp:148-151:
+#   delta_*_qr_center -> HALF distance (board centre to marker centre)
+#   delta_*_circles   -> FULL centre-to-centre distance
+fast_calib:
+  ros__parameters:
+    # --- Camera intrinsics: D435i colour @ 1280x720 -------------------------------
+    # Factory values from /camera/color/camera_info (plumb_bob, distortion all zero).
+    # Re-read these from the actual calibration bag before trusting them.
+    fx: 912.1945
+    fy: 911.9075
+    cx: 643.4632
+    cy: 371.8841
+    k1: 0.0
+    k2: 0.0
+    p1: 0.0
+    p2: 0.0
+
+    # --- Calibration target ------------------------------------------------------
+    # Replace every value below with the AS-BUILT tape measurement.
+    # AS-BUILT, measured 2026-08-27. Measured rim-to-rim / edge-to-edge (a tape
+    # cannot reach a hole centre), centres derived as (outer+inner)/2 and sizes as
+    # (outer-inner)/2. Cross-check: outer hole diagonal predicted 502.5 mm from
+    # these numbers, measured 505 mm.
+    #   holes  h: outer 426.5 inner 105 -> c-c 265.75, dia 160.75
+    #   holes  v: outer 376.0 inner  50 -> c-c 213.00, dia 163.00
+    #   markers h: outer 625.0 inner 465 -> c-c 545.0, side 80.0
+    #   markers v: outer 486.0           -> c-c 406.0
+    marker_size: 0.080              # FULL outer black-square side
+    delta_width_qr_center: 0.2725   # HALF of the 545.0 mm marker centre spacing
+    delta_height_qr_center: 0.2030  # HALF of the 406.0 mm marker centre spacing
+    delta_width_circles: 0.26575    # FULL hole centre spacing, horizontal
+    delta_height_circles: 0.21300   # FULL hole centre spacing, vertical
+    # Holes are slightly oval (160.75 mm across, 163.00 mm tall); this is the mean
+    # radius. It only sets the RANSAC search band and the acceptance residual
+    # (0.1667 * circle_radius = 13.5 mm), against which +-0.56 mm of ovality is
+    # negligible -- do not read it as a precise figure.
+    circle_radius: 0.0810
+
+    # GEOMETRY_TOLERANCE (include/common_lib.h:42) must stay below
+    # |delta_width_circles - delta_height_circles| = 0.0528 m. It is 0.02. OK.
+
+    # --- Distance filter, LiDAR frame --------------------------------------------
+    # MEASURED from go2_scene1_0827_132226, not guessed. Forward is +x (confirmed
+    # empirically -- /lidar_points carries a baked-in +90 deg yaw from the Hesai
+    # driver, hesai_lidar_driver/config/config.yaml:51,57, so this was not assumable).
+    # Board plane sits at x = 1.00 m, normal along x, 6.4 deg off square.
+    # Verified: 275963 points survive this box and 94.0% of them fit a single plane,
+    # i.e. the box is essentially just the board -- no wall, no floor.
+    x_min: 1.460
+    x_max: 1.710
+    y_min: -0.538
+    y_max: 0.250
+    z_min: -0.302
+    z_max: 0.352
+
+    # --- Input / output ----------------------------------------------------------
+    lidar_topic: "/lidar_points"
+    bag_path: "/home/unitree/fastlivo_ws/src/FAST-Calib-ROS2/calib_data/go2_scene5_0827_152851"
+    image_path: "/home/unitree/fastlivo_ws/src/FAST-Calib-ROS2/calib_data/go2_scene5_0827_152851/frame.png"
+    output_path: "/home/unitree/fastlivo_ws/src/FAST-Calib-ROS2/output_scene5/"
+
+    # 4 = require all four markers. qr_detect.hpp:201 ALSO rejects the frame when more
+    # than 4 markers are detected, so no other DICT_6X6_250 marker may be in view.
+    min_detected_markers: 4
+    use_template_fit: true
