@@ -137,8 +137,15 @@ public:
         normal.normalize();
         Eigen::Vector3d z_axis(0, 0, 1);
 
+        // Eigen::AngleAxisd requires a UNIT axis; upstream passed normal x z raw, whose
+        // length is sin(angle). With a non-unit axis R is not a rotation and scales the
+        // board in-plane. Invisible on a level LiDAR (board normal horizontal, so
+        // |axis| = sin 90 = 1); on the rover's 21-deg-pitched Airy |axis| ~ 0.93 and a
+        // synthetic scene came out with its hole pattern 6-9% too large, 13 mm RMSE.
         Eigen::Vector3d axis = normal.cross(z_axis);
-        double angle = acos(normal.dot(z_axis));
+        double angle = acos(std::clamp(normal.dot(z_axis), -1.0, 1.0));
+        if (axis.norm() < 1e-9) axis = Eigen::Vector3d::UnitX();  // already parallel to z
+        axis.normalize();
 
         Eigen::AngleAxisd rotation(angle, axis);
         Eigen::Matrix3d R = rotation.toRotationMatrix();
