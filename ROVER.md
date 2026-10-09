@@ -31,15 +31,28 @@ src/fast_calib/scripts/record_scene.sh rover_scene1
 # 3. frame.png + config/qr_params_rover_rover_scene1.yaml (intrinsics from THIS bag)
 python3 src/fast_calib/scripts/prepare_scene.py src/fast_calib/calib_data/rover_scene1
 
-# 4. Run, then check /fast_calib/filtered_cloud + plane_cloud in Foxglove. Tighten
-#    the crop box in the scene yaml until it holds just the board (no floor).
+# 4. Crop box: fitted automatically from the camera's board pose + a rough prior extrinsic
+python3 src/fast_calib/scripts/auto_box.py src/fast_calib/config/qr_params_rover_rover_scene1.yaml
+
+# 5. Run each scene (writes output_<scene>/calib_result.txt and centers.txt)
 ros2 launch fast_calib calib_launch.py params_file:=<printed path>
+
+# 6. Joint fit over ALL scenes -- this is the result, not any single scene's
+cd src/fast_calib
+python3 scripts/joint_solve.py config/qr_params_rover_rover_scene*.yaml \
+    --prior ../fastlivo/config/rover_airy_zed.yaml --holes
+
+# 7. Look at it
+python3 scripts/render_overlays.py config/qr_params_rover_rover_scene*.yaml \
+    --calib output_rover_joint/calib_result.txt --prior ../fastlivo/config/rover_airy_zed.yaml
 ```
 
-Judge a scene the way CALIB_RESULTS.md does: by per-hole annulus support and agreement
-with the other scenes. RMSE is ~0 by construction with the template fit. The extrinsic
-does not depend on resolution, so a 2K result goes straight into the 640x360 FAST-LIVO2
-config.
+Record many scenes (8+, 17 used for the result), varying board HEIGHT and distance,
+not just angle: on the Airy one scene is only good to ~2 deg because of per-ring range
+offsets, and only different rings crossing the board average them out. Fit jointly
+(step 6); RMSE is ~0 by construction with the template fit. Results and the evidence:
+ROVER_RESULTS.md. The extrinsic does not depend on resolution, so a 2K result goes
+straight into the 640x360 FAST-LIVO2 config.
 
 `scripts/synth_scene.py` builds a synthetic scene with a known extrinsic (no robot
 needed); it should recover truth to about 0.5° / 4 mm.

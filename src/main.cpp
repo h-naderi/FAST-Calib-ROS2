@@ -87,6 +87,23 @@ int main(int argc, char **argv)
 
     saveCalibrationResults(params, transformation, colored_cloud, qrDetectPtr->imageCopy_);
 
+    // The four correspondences themselves, for scripts/joint_solve.py: one scene's 4
+    // pairs pin the extrinsic poorly on a LiDAR with per-ring range offsets (the Airy),
+    // so the rover result is a single Kabsch fit over every scene's pairs at once.
+    if (qr_centers->size() == 4 && lidar_centers->size() == 4)
+    {
+      std::string dir = params.output_path;
+      if (dir.back() != '/') dir += '/';
+      std::filesystem::create_directories(dir);
+      std::ofstream c(dir + "centers.txt");
+      c << "# FAST-Calib hole-centre pairs, TL TR BR BL facing the board [m]\n"
+        << "# camera_x camera_y camera_z lidar_x lidar_y lidar_z\n"
+        << std::fixed << std::setprecision(6);
+      for (int i = 0; i < 4; ++i)
+        c << qr_centers->at(i).x << " " << qr_centers->at(i).y << " " << qr_centers->at(i).z << " "
+          << lidar_centers->at(i).x << " " << lidar_centers->at(i).y << " " << lidar_centers->at(i).z << "\n";
+    }
+
     auto colored_cloud_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>("~/colored_cloud", 1);
     auto aligned_lidar_centers_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>("~/aligned_lidar_centers", 1);
 

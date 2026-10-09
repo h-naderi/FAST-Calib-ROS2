@@ -7,3 +7,6 @@ install/*
 
 # Large point-cloud outputs (exceed GitHub 100 MB limit)
 *.pcd
+
+# Python bytecode
+__pycache__/
