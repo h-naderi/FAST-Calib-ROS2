@@ -515,7 +515,12 @@ public:
             for (size_t j = i + 1; j < _candidates.size(); ++j) {
                 float dx = _candidates[i].x - _candidates[j].x;
                 float dy = _candidates[i].y - _candidates[j].y;
-                float distance = sqrt(dx*dx + dy*dy);
+                // 3D, not dx/dy only: these are camera-frame points and z is depth, so
+                // the planar distance shrinks by cos(board yaw). At 25 deg the 265.75 mm
+                // width reads 241 mm, outside GEOMETRY_TOLERANCE, and a good scene is
+                // rejected ("Unable to find a candidate set ...").
+                float dz = _candidates[i].z - _candidates[j].z;
+                float distance = sqrt(dx*dx + dy*dy + dz*dz);
                 
                 // Check if this distance matches expected width or height
                 if (abs(distance - _delta_width) < GEOMETRY_TOLERANCE) {
