@@ -1,0 +1,7 @@
+# FAST-Calib joint fit over 17 scenes: rover_scene10 rover_scene112 rover_scene13 rover_scene14 rover_scene15 rover_scene16 rover_scene17 rover_scene18 rover_scene1 rover_scene2 rover_scene3 rover_scene4 rover_scene5 rover_scene6 rover_scene7 rover_scene8 rover_scene9
+# bootstrap 68%: 0.43 deg, 7.7 mm
+# T_cam_lidar, p_cam = Rcl * p_lidar + Pcl (FAST-LIVO2 extrin_calib)
+Rcl: [  -0.000257,  -0.999998,   0.001974,
+         0.383879,  -0.001921,  -0.923381,
+         0.923383,   0.000520,   0.383879 ]
+Pcl: [   0.057236,  -0.044236,  -0.014232 ]

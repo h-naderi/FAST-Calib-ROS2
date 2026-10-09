@@ -1,0 +1,18 @@
+# FAST-LIVO2 calibration format
+cam_model: Pinhole
+cam_width: 2208
+cam_height: 1242
+scale: 1.0
+cam_fx: 1062.95
+cam_fy: 1062.95
+cam_cx: 1143.2
+cam_cy: 591.679
+cam_d0: 0
+cam_d1: 0
+cam_d2: 0
+cam_d3: 0
+
+Rcl: [  0.007440,  -0.999935,  -0.008679,
+        0.390725,   0.010896,  -0.920443,
+        0.920478,   0.003457,   0.390780]
+Pcl: [  0.052994,  -0.059392,  -0.010022]
