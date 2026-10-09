@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Record one rover calibration scene: Airy cloud + ZED rect left image + its camera_info.
 #
-#   scripts/record_scene.sh rover_scene1 [seconds]     (default 10 s)
+#   scripts/record_scene.sh rover_scene1 [seconds]     (default 15 s; ~3 s of it is startup)
 #
 # Needs only zero.launch.py running -- not bringup, nav or YOLO. For native-resolution
 # frames, start it with a session-only override that leaves zed_overrides.yaml alone:
@@ -14,12 +14,16 @@
 # Keep the robot and the board still for the whole recording; the cloud is accumulated.
 set -euo pipefail
 scene=${1:?usage: record_scene.sh <scene_name> [seconds]}
-secs=${2:-10}
+secs=${2:-15}
 dir="$(cd "$(dirname "$0")/.." && pwd)/calib_data/$scene"
 [[ -e "$dir" ]] && { echo "$dir already exists" >&2; exit 1; }
 
 img=/camera/zed_node/rgb/color/rect/image
-timeout --signal=INT "$secs" ros2 bag record -s mcap -o "$dir" \
-  /rslidar_points "$img" "$img/camera_info" || true
+# --foreground keeps the recorder in the terminal's process group: without it Ctrl-C
+# never reaches it, and the first time rosbag2's keyboard controls touch the tty the
+# kernel stops it (state T) -- it then hangs forever and writes nothing.
+timeout --foreground --signal=INT "$secs" ros2 bag record -s mcap -o "$dir" \
+  --disable-keyboard-controls --topics /rslidar_points "$img" "$img/camera_info" \
+  < /dev/null || true
 ros2 bag info "$dir" | grep -E "Duration|Topic:"
 echo "next: python3 $(dirname "$0")/prepare_scene.py $dir"
