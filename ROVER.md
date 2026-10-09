@@ -22,7 +22,7 @@ put it anywhere else: the URDF feeds the rest of the stack.
 # 1. Sensors only, ZED at native res for this session (zed_overrides.yaml untouched).
 #    No bringup / YOLO: yolo_depth_node caches intrinsics once at start.
 ros2 launch roverrobotics_driver zero.launch.py \
-  zed_param_overrides:='general.grab_resolution:=HD2K;general.pub_resolution:=NATIVE'
+  zed_param_overrides:='general.grab_resolution:=HD2K;general.pub_resolution:=NATIVE;general.pub_frame_rate:=2.0'
 
 # 2. Board upright on a stand ~1.0-1.5 m ahead, whole hole pattern visible to both
 #    sensors, robot and board still. One recording per scene; vary tilt between scenes.

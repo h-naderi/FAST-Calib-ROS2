@@ -7,8 +7,9 @@
 # frames, start it with a session-only override that leaves zed_overrides.yaml alone:
 #
 #   ros2 launch roverrobotics_driver zero.launch.py \
-#     zed_param_overrides:='general.grab_resolution:=HD2K;general.pub_resolution:=NATIVE'
+#     zed_param_overrides:='general.grab_resolution:=HD2K;general.pub_resolution:=NATIVE;general.pub_frame_rate:=2.0'
 #
+# pub_frame_rate 2: a 2K bgra frame is ~11 MB, so 15 Hz would be ~165 MB/s of bag.
 # Do NOT run YOLO in that session: yolo_depth_node caches intrinsics once at start.
 # Keep the robot and the board still for the whole recording; the cloud is accumulated.
 set -euo pipefail
