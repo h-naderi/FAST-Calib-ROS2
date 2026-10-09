@@ -29,7 +29,7 @@ which is included as part of this source code package.
 #include <filesystem>
 
 #include <tf2/LinearMath/Transform.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include "color.h"
 #include <rclcpp/rclcpp.hpp>
 
@@ -71,7 +71,7 @@ struct Params {
   bool use_template_fit;
   // Per-marker corner-order correction, indexed by ArUco ID 1..4 (i.e. board
   // positions TL, TR, BL, BR). cv::aruco::detectMarkers always returns corners in
-  // the MARKER's own frame, while estimatePoseBoard matches them to boardCorners
+  // the MARKER's own frame, while the board pose fit matches them to boardCorners
   // BY INDEX, in the BOARD's frame. A marker glued on rotated therefore feeds four
   // mis-corresponded points into the board pose fit with no error message -- 27 px
   // of reprojection residual and ~4.7 deg of board-pose bias, measured on the Go2
@@ -79,6 +79,12 @@ struct Params {
   // marker's corner list left by k, so detected corner (j+k)%4 is treated as board
   // corner j. All zeros = upstream behaviour.
   std::vector<long int> marker_corner_shift;
+  // Board-plane RANSAC inlier band [m]. Upstream hardcoded 0.01, which assumes a
+  // LiDAR whose range noise, accumulated over the whole bag, stays inside +-1 cm.
+  double plane_dist_threshold;
+  // Frame stamped on the debug clouds. Upstream used "map", which on a robot running
+  // slam_toolbox draws these clouds into the live map frame.
+  string debug_frame;
   string image_path;
   string bag_path;
   string lidar_topic;
@@ -121,6 +127,8 @@ Params loadParameters(std::shared_ptr<rclcpp::Node> node) {
   node->declare_parameter("min_cluster_size", 50);       // upstream default
   node->declare_parameter("max_cluster_size", 1000);     // upstream default
   node->declare_parameter("use_template_fit", false);    // upstream default
+  node->declare_parameter("plane_dist_threshold", 0.01); // upstream default
+  node->declare_parameter("debug_frame", "fast_calib");
   node->declare_parameter("marker_corner_shift",
                           std::vector<long int>{0, 0, 0, 0});  // upstream default
 
@@ -157,6 +165,8 @@ Params loadParameters(std::shared_ptr<rclcpp::Node> node) {
     params.min_cluster_size   = node->get_parameter("min_cluster_size").as_int();
     params.max_cluster_size   = node->get_parameter("max_cluster_size").as_int();
     params.use_template_fit   = node->get_parameter("use_template_fit").as_bool();
+    params.plane_dist_threshold = node->get_parameter("plane_dist_threshold").as_double();
+    params.debug_frame        = node->get_parameter("debug_frame").as_string();
     params.marker_corner_shift = node->get_parameter("marker_corner_shift").as_integer_array();
     if (params.marker_corner_shift.size() != 4) {
       RCLCPP_ERROR(node->get_logger(),

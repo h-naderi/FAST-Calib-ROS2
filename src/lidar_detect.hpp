@@ -24,6 +24,7 @@ private:
     double edge_search_radius_, boundary_angle_rad_, cluster_tolerance_;
     int min_cluster_size_, max_cluster_size_;
     bool use_template_fit_;
+    double plane_dist_threshold_;
     double delta_width_circles_, delta_height_circles_;
     std::shared_ptr<rclcpp::Node> node_;
 
@@ -63,15 +64,16 @@ public:
         min_cluster_size_   = params.min_cluster_size;
         max_cluster_size_   = params.max_cluster_size;
         use_template_fit_   = params.use_template_fit;
+        plane_dist_threshold_ = params.plane_dist_threshold;
         delta_width_circles_  = params.delta_width_circles;
         delta_height_circles_ = params.delta_height_circles;
 
-        filtered_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("filtered_cloud", 1);
-        plane_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("plane_cloud", 1);
-        aligned_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("aligned_cloud", 1);
-        edge_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("edge_cloud", 1);
-        center_z0_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("center_z0_cloud", 10);
-        center_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("center_cloud", 10);
+        filtered_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("~/filtered_cloud", 1);
+        plane_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("~/plane_cloud", 1);
+        aligned_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("~/aligned_cloud", 1);
+        edge_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("~/edge_cloud", 1);
+        center_z0_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("~/center_z0_cloud", 10);
+        center_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("~/center_cloud", 10);
     }
 
     void detect_lidar(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr center_cloud)
@@ -115,7 +117,7 @@ public:
         pcl::SACSegmentation<pcl::PointXYZ> plane_segmentation;
         plane_segmentation.setModelType(pcl::SACMODEL_PLANE);
         plane_segmentation.setMethodType(pcl::SAC_RANSAC);
-        plane_segmentation.setDistanceThreshold(0.01);
+        plane_segmentation.setDistanceThreshold(plane_dist_threshold_);
         plane_segmentation.setInputCloud(filtered_cloud_);
         plane_segmentation.segment(*plane_inliers, *plane_coefficients);
     

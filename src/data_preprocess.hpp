@@ -17,7 +17,7 @@ which is included as part of this source code package.
 #include <rclcpp/rclcpp.hpp>
 #include <rosbag2_cpp/readers/sequential_reader.hpp>
 #include <rosbag2_cpp/converter_interfaces/serialization_format_converter.hpp>
-#include <rosbag2_cpp/storage_options.hpp>
+#include <rosbag2_storage/storage_options.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <rclcpp/serialization.hpp>
 
@@ -45,24 +45,23 @@ public:
             return;
         }
 
-        // Check if bag file exists
-        std::fstream file_;
-        file_.open(bag_path, ios::in);
-        if (!file_) 
+        // A ROS 2 bag is a directory (or a single .mcap/.db3 file); both are valid
+        if (!std::filesystem::exists(bag_path))
         {
             std::string msg = "Loading the rosbag " + bag_path + " failed";
             RCLCPP_ERROR(rclcpp::get_logger("data_preprocess"), "%s", msg.c_str());
             return;
         }
-        file_.close();
         
         RCLCPP_INFO(rclcpp::get_logger("data_preprocess"), "Loading the rosbag %s", bag_path.c_str());
         
         // ROS 2 rosbag reading
         rosbag2_cpp::readers::SequentialReader reader;
-        rosbag2_cpp::StorageOptions storage_options;
+        rosbag2_storage::StorageOptions storage_options;
         storage_options.uri = bag_path;
-        storage_options.storage_id = "sqlite3";
+        // Empty = detect from metadata.yaml / extension. Jazzy records mcap by default;
+        // upstream's hardcoded "sqlite3" refuses to open those.
+        storage_options.storage_id = "";
 
         rosbag2_cpp::ConverterOptions converter_options;
         converter_options.input_serialization_format = "cdr";

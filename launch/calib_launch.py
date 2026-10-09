@@ -11,21 +11,21 @@ def generate_launch_description():
     # Declare launch arguments
     rviz_arg = DeclareLaunchArgument(
         'rviz',
-        default_value='true',
-        description='Launch RViz'
+        default_value='false',
+        description='Launch RViz (its config is FAST-LIVO2\'s; Foxglove is the viewer here)'
     )
 
-    # Which parameter file to run. DEFAULT IS THE GO2 BOARD -- running with the wrong
-    # geometry produces a plausible-looking but wrong extrinsic and no error message,
-    # so the config that is actually in use is the one that needs no argument.
-    # For the Mid360 sample-data regression case, pass it explicitly:
-    #   params_file:=<pkg_share>/config/qr_params.yaml
+    # Which parameter file to run. DEFAULT IS THE ROVER (Airy + ZED 2i) -- running with
+    # the wrong file produces a plausible-looking but wrong extrinsic and no error
+    # message, so the config that is actually in use is the one that needs no argument.
+    # Go2: params_file:=<pkg_share>/config/qr_params_go2.yaml
+    # Mid360 sample-data regression case: params_file:=<pkg_share>/config/qr_params.yaml
     params_arg = DeclareLaunchArgument(
         'params_file',
         default_value=os.path.join(
-            get_package_share_directory('fast_calib'), 'config', 'qr_params_go2.yaml'),
+            get_package_share_directory('fast_calib'), 'config', 'qr_params_rover.yaml'),
         description='Absolute path to the qr_params YAML to use '
-                    '(default: qr_params_go2.yaml, the Go2 half-scale board)'
+                    '(default: qr_params_rover.yaml, Airy + ZED 2i, Go2 half-scale board)'
     )
 
     # Get package directory

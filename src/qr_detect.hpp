@@ -9,7 +9,10 @@ which is included as part of this source code package.
 #define QR_DETECT_HPP
 
 #include <rclcpp/rclcpp.hpp>
-#include <opencv2/aruco.hpp>
+// OpenCV >= 4.7: ArUco lives in objdetect (no opencv_contrib on this robot) and the
+// estimatePose* free functions are gone -- poses come from solvePnP below.
+#include <opencv2/objdetect/aruco_detector.hpp>
+#include <opencv2/calib3d.hpp>
 #include <opencv2/opencv.hpp>
 #include "common_lib.h"
 
@@ -20,7 +23,7 @@ class QRDetect
     double delta_width_circles_, delta_height_circles_;
     int min_detected_markers_;
     std::vector<long int> marker_corner_shift_;
-    cv::Ptr<cv::aruco::Dictionary> dictionary_;
+    cv::aruco::Dictionary dictionary_;
     std::shared_ptr<rclcpp::Node> node_;
   
   public:
@@ -51,7 +54,7 @@ class QRDetect
       // Initialize QR dictionary
       dictionary_ = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
 
-      qr_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("qr_cloud", 1);
+      qr_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("~/qr_cloud", 1);
     }
 
     cv::Point2f projectPointDist(cv::Point3f pt_cv, const cv::Mat intrinsics, const cv::Mat distCoeffs) 
@@ -178,25 +181,19 @@ class QRDetect
 
       // Create Aruco board
       std::vector<int> boardIds{1, 2, 4, 3};
-      cv::Ptr<cv::aruco::Board> board =
-          cv::aruco::Board::create(boardCorners, dictionary_, boardIds);
+      cv::aruco::Board board(boardCorners, dictionary_, boardIds);
 
-      cv::Ptr<cv::aruco::DetectorParameters> parameters =
-          cv::aruco::DetectorParameters::create();
-
-    #if (CV_MAJOR_VERSION == 3 && CV_MINOR_VERSION <= 2) || CV_MAJOR_VERSION < 3
-      parameters->doCornerRefinement = true;
-    #else
-      parameters->cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
-    #endif
+      cv::aruco::DetectorParameters parameters;
+      parameters.cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
+      cv::aruco::ArucoDetector detector(dictionary_, parameters);
 
       // Detect markers - use processedImage instead of image
       std::vector<int> ids;
       std::vector<std::vector<cv::Point2f>> corners;
-      cv::aruco::detectMarkers(processedImage, dictionary_, corners, ids, parameters);
+      detector.detectMarkers(processedImage, corners, ids);
 
       // Undo any physical marker rotation BEFORE anything consumes the corners.
-      // detectMarkers returns corners in the marker's own frame; estimatePoseBoard
+      // detectMarkers returns corners in the marker's own frame; matchImagePoints
       // below matches them to boardCorners by index, in the board's frame. If a
       // marker is mounted rotated the two disagree and the board pose is silently
       // dragged (~4.7 deg / 13 mm of circle-centre shift on this board). Rotating
@@ -220,10 +217,17 @@ class QRDetect
       if (ids.size() >= static_cast<size_t>(min_detected_markers_) && ids.size() <= TARGET_NUM_CIRCLES) 
       {
         // Estimate 3D position of the markers
-        std::vector<cv::Vec3d> rvecs, tvecs;
+        // Same result as the removed cv::aruco::estimatePoseSingleMarkers: the marker's
+        // own corners in its own frame, in the order detectMarkers returns them
+        // (TL, TR, BR, BL), which is the order SOLVEPNP_IPPE_SQUARE requires.
+        const float hm = static_cast<float>(marker_size_ / 2.);
+        const std::vector<cv::Point3f> markerObj{
+            {-hm, hm, 0}, {hm, hm, 0}, {hm, -hm, 0}, {-hm, -hm, 0}};
+        std::vector<cv::Vec3d> rvecs(ids.size()), tvecs(ids.size());
+        for (size_t i = 0; i < ids.size(); ++i)
+          cv::solvePnP(markerObj, corners[i], cameraMatrix_, distCoeffs_,
+                       rvecs[i], tvecs[i], false, cv::SOLVEPNP_IPPE_SQUARE);
         cv::Vec3f rvec_sin, rvec_cos;
-        cv::aruco::estimatePoseSingleMarkers(corners, marker_size_, cameraMatrix_,
-                                            distCoeffs_, rvecs, tvecs);
 
         // Draw markers' axis and centers in color image
         for (size_t i = 0; i < ids.size(); i++) {
@@ -253,13 +257,14 @@ class QRDetect
         pcl::PointCloud<pcl::PointXYZ>::Ptr candidates_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
         // Estimate 3D position of the board using detected markers
-    #if (CV_MAJOR_VERSION == 3 && CV_MINOR_VERSION <= 2) || CV_MAJOR_VERSION < 3
-        int valid = cv::aruco::estimatePoseBoard(corners, ids, board, cameraMatrix_,
-                                                distCoeffs_, rvec, tvec);
-    #else
-        int valid = cv::aruco::estimatePoseBoard(corners, ids, board, cameraMatrix_,
-                                                distCoeffs_, rvec, tvec, true);
-    #endif
+        // Replaces the removed cv::aruco::estimatePoseBoard(..., useExtrinsicGuess=true),
+        // which was exactly this: match detected corners to board corners by marker ID,
+        // then iterative solvePnP seeded with the averaged single-marker pose above.
+        cv::Mat objPoints, imgPoints;
+        board.matchImagePoints(corners, ids, objPoints, imgPoints);
+        int valid = static_cast<int>(objPoints.total() / 4);
+        cv::solvePnP(objPoints, imgPoints, cameraMatrix_, distCoeffs_, rvec, tvec, true);
+        RCLCPP_INFO(node_->get_logger(), "[Mono] board pose from %d marker(s)", valid);
 
         cv::drawFrameAxes(imageCopy_, cameraMatrix_, distCoeffs_, rvec, tvec, 0.2);
 

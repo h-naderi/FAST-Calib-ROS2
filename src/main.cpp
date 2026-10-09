@@ -87,8 +87,8 @@ int main(int argc, char **argv)
 
     saveCalibrationResults(params, transformation, colored_cloud, qrDetectPtr->imageCopy_);
 
-    auto colored_cloud_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>("colored_cloud", 1);
-    auto aligned_lidar_centers_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>("aligned_lidar_centers", 1);
+    auto colored_cloud_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>("~/colored_cloud", 1);
+    auto aligned_lidar_centers_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>("~/aligned_lidar_centers", 1);
 
     // Main loop
     rclcpp::Rate rate(1);
@@ -100,7 +100,7 @@ int main(int argc, char **argv)
         sensor_msgs::msg::PointCloud2 qr_centers_msg;
         pcl::toROSMsg(*qr_centers, qr_centers_msg);
         qr_centers_msg.header.stamp = node->get_clock()->now();
-        qr_centers_msg.header.frame_id = "map";
+        qr_centers_msg.header.frame_id = params.debug_frame;
         qrDetectPtr->qr_pub_->publish(qr_centers_msg);
 
         // Publish LiDAR detection results
